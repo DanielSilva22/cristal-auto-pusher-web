@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: cristal-auto-pusher
+    env: python
+    plan: free
+    buildCommand: pip install requests
+    startCommand: python app.py
+    envVars:
+      - key: RELAY_URL
+        value: https://cristal-gpt-relay.onrender.com
