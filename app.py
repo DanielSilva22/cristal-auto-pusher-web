@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request, jsonify
 import os
 import json
 import time
@@ -8,6 +8,23 @@ import requests
 app = Flask(__name__)
 QUEUE_DIR = "/tmp/gpt_autopush"
 RELAY_URL = os.environ.get("RELAY_URL", "https://cristal-gpt-relay.onrender.com/relay")
+
+@app.route("/")
+def home():
+    return "AutoPusher Web Service v2 is active", 200
+
+@app.route("/pushfile", methods=["POST"])
+def receive_file():
+    task = request.json
+    fname = task.get("filename")
+    data = task.get("data")
+    if not fname or not data:
+        return jsonify({"error": "Missing filename or data"}), 400
+    os.makedirs(QUEUE_DIR, exist_ok=True)
+    full_path = os.path.join(QUEUE_DIR, fname)
+    with open(full_path, "w", encoding="utf-8") as f:
+        json.dump({"filename": fname, "data": data}, f, indent=2, ensure_ascii=False)
+    return jsonify({"status": "saved", "file": fname})
 
 def autopush_loop():
     print("AutoPusher Web Loop Running...")
@@ -19,8 +36,8 @@ def autopush_loop():
                 if fname.endswith(".json"):
                     fpath = os.path.join(QUEUE_DIR, fname)
                     with open(fpath, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    res = requests.post(RELAY_URL, json=data)
+                        task = json.load(f)
+                    res = requests.post(RELAY_URL, json=task)
                     if res.status_code == 200:
                         print(f"Pushed: {fname}")
                         os.remove(fpath)
@@ -30,11 +47,7 @@ def autopush_loop():
             print("Error:", e)
         time.sleep(15)
 
-@app.route("/")
-def home():
-    return "AutoPusher Web Service is active", 200
-
-# Lancer la boucle auto en background
+# Démarrer le thread de fond
 threading.Thread(target=autopush_loop, daemon=True).start()
 
 if __name__ == "__main__":
